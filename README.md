@@ -168,6 +168,9 @@ CREATE TABLE transactions (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+ALTER TABLE spin_wheels
+ADD COLUMN started_at DATETIME NULL,
+ADD COLUMN aborted_at DATETIME NULL;
 
 
 Setup & Installation
