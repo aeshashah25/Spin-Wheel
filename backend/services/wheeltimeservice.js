@@ -4,7 +4,7 @@ const db = require("../config/db");
 
 const START_DELAY = 60 * 1000;
 
-// 1️⃣ AUTO START
+// 1️ AUTO START
 exports.autoStart = (wheelId) => {
   setTimeout(() => {
     Participant.count(wheelId, (e, c) => {
@@ -21,14 +21,14 @@ exports.autoStart = (wheelId) => {
   }, START_DELAY);
 };
 
-// 2️⃣ ELIMINATION PROCESS
+// 2️ ELIMINATION PROCESS
 function startElimination(wheelId) {
   const interval = setInterval(() => {
     Participant.getAlive(wheelId, (e, users) => {
       if (users.length === 1) {
         const winner = users[0];
 
-        // 🔥 PAYOUT LOGIC ADDED
+        //  PAYOUT LOGIC ADDED
         payoutWinner(wheelId, winner.user_id, () => {
           SpinWheel.updateStatus(wheelId, "completed");
           clearInterval(interval);
@@ -43,11 +43,9 @@ function startElimination(wheelId) {
   }, 7000);
 }
 
-/////////////////////////
-// 🔥 NEW FUNCTIONS
-/////////////////////////
 
-// 🔁 REFUND ALL USERS
+
+//  REFUND ALL USERS
 function refundAll(wheelId, cb) {
   const sql = `
     SELECT p.user_id, w.entry_fee
@@ -90,7 +88,7 @@ function refundAll(wheelId, cb) {
   });
 }
 
-// 🏆 PAYOUT WINNER + ADMIN
+//  PAYOUT WINNER + ADMIN
 function payoutWinner(wheelId, winnerId, cb) {
   db.query(
     "SELECT winner_pool, admin_pool FROM spin_wheels WHERE id=?",

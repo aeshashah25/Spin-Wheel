@@ -1,268 +1,212 @@
-# Spin-Wheel
-real-time multiplayer Spin Wheel game system where users join a wheel by paying coins, get eliminated in real time, and the last remaining player wins the prize pool.
+Spin Wheel Game System – ROXSTAR Assessment
+
+A production-ready backend implementation of a real-time multiplayer Spin Wheel game with secure coin handling, concurrency safety, and automated lifecycle management.
+
+-> Overview
+
+This project implements a multi-user spin wheel game system where:
+
+Admins create spin wheels
+
+Users join by paying coins
+
+Wheels auto-start or can be manually started
+
+Participants are eliminated periodically
+
+Winner and admin receive coin payouts
+
+Failed wheels are auto-aborted with refunds
+
+The system is designed with correctness, concurrency safety, and scalability as top priorities.
+
+-> Key Design Principles
+
+Single Active Wheel Guarantee
+
+Atomic Coin Operations
+
+Race Condition Prevention
+
+Deterministic State Transitions
+
+Extensible Architecture
 
 
 
-flow chart
-[Admin creates wheel]
-          |
-          v
-[Wheel status = "waiting"] 
-          |
-          v
-[Users join wheel]
-          |  (coins deducted atomically)
-          v
-[Participants table updated]
-          |
-          v
-[Min players reached OR 3 min timer]
-          |
-          v
-[Wheel starts] -----------------------> [Not enough players? Auto-abort & refund]
-          |
-          v
-[Elimination sequence every 7s]
-          |
-          v
-[Last user remaining → Winner]
-          |
-          v
-[Distribute coins: Winner pool + Admin pool]
-          |
-          v
-[Wheel status = "completed"]
+Installation & Setup
 
+Follow these steps to run the Spin Wheel Game System locally.
 
+-->Prerequisites
+Make sure you have the following installed:
+Node.js v16 or higher
+MySQL v8+
 
+-->npm (comes with Node.js)
+-->Postman (for API testing)
 
-Overview
+-->Verify installation:
+node -v
+npm -v
+mysql --version
 
-The Spin Wheel Game System is a real-time multiplayer game where users can:
+ -->Clone the Repository
+git clone https://github.com/your-username/spin-wheel-backend.git
+cd spin-wheel-backend
 
-Join spin wheels by paying an entry fee in coins
-
-Compete in rounds with elimination every 7 seconds
-
-Winners receive the prize pool while admins receive a portion
-
-All operations are atomic, concurrency-safe, and database-driven
-
-This project is built for the ROXSTAR assessment and follows MVC architecture, ensuring clean separation of concerns.
-
-Tech Stack
-
-Backend: Node.js, Express
-
-Database: MySQL (phpMyAdmin used for local testing)
-
-Real-time communication: Socket.IO (planned for live updates)
-
-Environment Variables: dotenv
-
-Styling / Frontend: (Optional) Tailwind CSS
-
-Features Implemented
-
-User Management: Create users, manage coins
-
-Spin Wheel Lifecycle:
-
-Admin creates wheel
-
-Only one active wheel at a time
-
-Users can join by paying coins
-
-Coin System:
-
-Deducts entry fee atomically
-
-Prevents duplicate entries
-
-Participant Management:
-
-Tracks participants per wheel
-
-Prevents double joins
-
-
-
-API Safety:
-
-Error handling for invalid wheel
-
-Concurrency-safe coin deduction
-
-Folder Structure (MVC)
-backend/
-├── config/
-│   └── db.js            # Database connection
-├── controllers/
-│   └── wheelController.js
-├── models/
-│   ├── Participant.js
-│   └── SpinWheel.js
-├── routes/
-│   └── wheelRoutes.js
-├── services/
-│   └── coinService.js
-├── server.js
-├── package.json
-└── .env
-
-
-
-controllers → business logic
-
-models → database queries
-
-services → reusable logic (coin operations)
-
-routes → REST endpoints
-
-server.js → main entry point
-
-
-
-Database Schema
--- Users
-CREATE TABLE users (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  username VARCHAR(50) UNIQUE NOT NULL,
-  coins INT DEFAULT 1000,
-  role ENUM('admin','user') DEFAULT 'user',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Spin Wheels
-CREATE TABLE spin_wheels (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(50),
-  prize INT DEFAULT 0,
-  status ENUM('waiting','active','completed','aborted') DEFAULT 'waiting',
-  entry_fee INT NOT NULL,
-  min_players INT DEFAULT 3,
-  created_by INT,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Participants
-CREATE TABLE spin_participants (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  wheel_id INT,
-  user_id INT,
-  eliminated BOOLEAN DEFAULT FALSE,
-  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (wheel_id) REFERENCES spin_wheels(id),
-  FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
--- Transactions (Coin ledger)
-CREATE TABLE transactions (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  user_id INT,
-  amount INT,
-  type ENUM('debit','credit'),
-  reason VARCHAR(100),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-ALTER TABLE spin_wheels
-ADD COLUMN started_at DATETIME NULL,
-ADD COLUMN aborted_at DATETIME NULL;
-
-
-Setup & Installation
-
-Clone repository
-
-git clone <your-repo-url>
-cd backend
-
-
-
-Install dependencies
-
+ -->Install Dependencies
 npm install
 
-
-Create .env
-
+--> Environment Variables
+Create a .env file in the root of the backend folder:
+PORT=5000
 DB_HOST=localhost
 DB_USER=root
-DB_PASSWORD=<your-password>
-DB_NAME=spin_wheel_game
-PORT=5000
+DB_PASSWORD=your_mysql_password
+DB_NAME=spin_wheel_db
 
 
-Start server
 
-node server.js
+-> System Architecture
+backend/
+├── server.js              # App entry point
+├── app.js                 # Express config & routes
+│
+├── config/
+│   └── db.js              # MySQL connection pool
+│
+├── routes/
+│   └── wheelroute.js      # API routes
+│
+├── controllers/
+│   └── wheelController.js # Business logic
+│
+├── services/
+│   └── wheeltimeservice.js # Auto start / elimination / refund logic
+│
+├── models/
+│   ├── spinwheel.js       # Wheel DB operations
+│   └── participant.js    # Participant DB operations
+│
+├── .env
+└── package.json
 
+🗄️ Database Schema
+users
+CREATE TABLE users (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(100),
+  coins INT DEFAULT 0,
+  role ENUM('user','admin') DEFAULT 'user'
+);
 
-Verify DB connection
+spin_wheels
+CREATE TABLE spin_wheels (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  entry_fee INT NOT NULL,
+  min_players INT DEFAULT 3,
+  status ENUM('waiting','running','completed','aborted') DEFAULT 'waiting',
+  winner_pool INT DEFAULT 0,
+  admin_pool INT DEFAULT 0,
+  app_pool INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  started_at TIMESTAMP NULL
+);
 
-Server running on port 5000
-DB Connected!
+spin_participants
+CREATE TABLE spin_participants (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  wheel_id INT,
+  user_id INT,
+  eliminated BOOLEAN DEFAULT 0,
+  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-API Endpoints
-1️⃣ Create Wheel (Admin)
-POST /api/wheels/create
-Body: { name, prize, entryFee, adminId }
+coin_transactions
+CREATE TABLE coin_transactions (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  amount INT,
+  type ENUM('debit','credit','refund'),
+  reason VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-2️⃣ Get Active Wheel
-GET /api/wheels/active
-
-3️⃣ Join Wheel (User)
-POST /api/wheels/join
-Body: { userId }
-
-
-Coin deduction and participant insert handled automatically.
-
-Gameplay Flow
-
-Admin creates a wheel → status = waiting
-
-Users join → coins deducted, participants added
-
-Wheel auto-start / manual start → elimination sequence begins (next steps planned)
-
-Last user remaining → winner, coins distributed
-
-Edge Cases & Safety
-
+--> Spin Wheel Lifecycle
+-> Initialize Wheel
+Only admins can create a wheel
 Only one active wheel allowed at a time
+Auto-start timer begins immediately
 
-User cannot join twice
-
+-> Join Wheel
+User pays entry fee in coins
+Duplicate joins prevented
 Coins deducted atomically
 
-Handles invalid wheel gracefully
+->Entry fee split:
+Winner Pool – 70%
+Admin Pool – 20%
+App Pool – 10%
 
-Future Improvements (Bonus Points)
+-> Auto / Manual Start
+Auto-start after configured delay
+Minimum participants required: 3
+Manual start available for admin
 
-Auto-start after 3 minutes
+-> Abort Logic
+If participants < 3 after timer:
+Wheel aborted
+All users refunded fully
+Transactions logged
 
-Elimination every 7 seconds
+->Elimination Process
+One user eliminated every 7 seconds
+Random selection
+Continues until one winner remains
 
-Real-time updates using Socket.IO
+->Final Payout
+Winner credited winner pool
+Admin credited admin pool
+Wheel marked as completed
+All payouts recorded in coin_transactions
 
-Coin pools configurable in DB
+-->Concurrency & Safety
+->Atomic Transactions
+All coin operations use MySQL transactions:
+Prevent partial debits/credits
+Guarantee consistency
 
-Admin dashboard + analytics
+->Duplicate Join Protection
+Same user cannot join the same wheel twice
 
-Comprehensive unit tests + load testing
+->Race Condition Prevention
+Wheel state validated before every mutation
+Timer and manual start guarded by status checks
 
-Interview Talking Points
+-->Edge Cases Handled
+User joins twice → rejected
+Insufficient coins → rejected
+Wheel starts twice → prevented
+Auto-start + manual start clash → handled
+Abort refunds → safe and idempotent
+Winner payout duplication → prevented
+Invalid state transitions blocked
 
-MVC Architecture → easy separation of concerns
+-->Testing (Postman)
+Create Wheel
+POST /api/wheels/create
 
-Atomic transactions → no partial coin updates
+{
+  "entryFee": 200,
+  "minPlayers": 3,
+  "adminId": 1
+}
 
-Error handling → all invalid scenarios return meaningful errors
+Join Wheel
+POST /api/wheels/join
 
-Scalable → only one active wheel simplifies concurrency
+{
+  "userId": 2
+}
 
-Edge cases documented → duplicates, invalid wheel, insufficient coins

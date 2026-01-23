@@ -10,7 +10,7 @@ exports.createWheel = (req, res) => {
     return res.status(400).json({ error: "entryFee and adminId required" });
   }
 
-  // ✅ 1. Check admin exists and role
+  //  1. Check admin exists and role
   db.query(
     "SELECT id, role FROM users WHERE id=?",
     [adminId],
@@ -25,13 +25,13 @@ exports.createWheel = (req, res) => {
         return res.status(403).json({ error: "Only admin can create wheel" });
       }
 
-      // ✅ 2. Check active wheel
+      //  2. Check active wheel
       SpinWheel.getActive((_, active) => {
         if (active) {
           return res.status(400).json({ error: "Wheel already active" });
         }
 
-        // ✅ 3. Create wheel
+        //  3. Create wheel
         SpinWheel.create(
           { entryFee, minPlayers },
           (err, wheel) => {
@@ -56,7 +56,7 @@ exports.joinWheel = (req, res) => {
   SpinWheel.getActive((_, wheel) => {
     if (!wheel) return res.status(400).json({ error: "No active wheel" });
 
-    // ✅ 1. Check if already joined
+    //  1. Check if already joined
     db.query(
       "SELECT id FROM spin_participants WHERE wheel_id=? AND user_id=?",
       [wheel.id, userId],
@@ -69,7 +69,7 @@ exports.joinWheel = (req, res) => {
           });
         }
 
-        // ✅ 2. Check user coins
+        //  2. Check user coins
         db.query(
           "SELECT coins FROM users WHERE id=?",
           [userId],
@@ -86,7 +86,7 @@ exports.joinWheel = (req, res) => {
               return res.status(400).json({ error: "Insufficient coins" });
             }
 
-            // ✅ 3. Atomic transaction
+            //  3. Atomic transaction
             db.getConnection((_, conn) => {
               conn.beginTransaction(() => {
                 conn.query(
