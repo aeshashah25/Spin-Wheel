@@ -1,61 +1,35 @@
 const db = require("../config/db");
 
-const SpinWheel = {
-
-  // ✅ CREATE WHEEL
-  create: ({ entryFee, minPlayers }, callback) => {
-    const sql = `
-      INSERT INTO spin_wheels (entry_fee, min_players, status)
-      VALUES (?, ?, 'waiting')
-    `;
-    db.query(sql, [entryFee, minPlayers], (err, result) => {
-      if (err) return callback(err);
-
-      callback(null, {
-        id: result.insertId,
-        entry_fee: entryFee,
-        min_players: minPlayers,
-        status: "waiting"
-      });
-    });
+module.exports = {
+  create: (data, cb) => {
+    db.query(
+      "INSERT INTO spin_wheels (entry_fee, min_players) VALUES (?,?)",
+      [data.entryFee, data.minPlayers],
+      (err, res) => cb(err, { id: res.insertId })
+    );
   },
 
-  // ✅ GET ACTIVE WHEEL
-  getActiveWheel: (callback) => {
-    const sql =
-      "SELECT * FROM spin_wheels WHERE status='waiting' ORDER BY created_at DESC LIMIT 1";
-    db.query(sql, (err, result) => {
-      if (err) return callback(err);
-      callback(null, result[0] || null);
-    });
+  getActive: (cb) => {
+    db.query(
+      "SELECT * FROM spin_wheels WHERE status='waiting' LIMIT 1",
+      (e, r) => cb(e, r[0])
+    );
   },
 
-  // ✅ GET BY ID
   getById: (id, cb) => {
-    db.query(
-      "SELECT * FROM spin_wheels WHERE id=?",
-      [id],
-      (err, rows) => {
-        cb(err, rows[0]);
-      }
+    db.query("SELECT * FROM spin_wheels WHERE id=?", [id], (e, r) =>
+      cb(e, r[0])
     );
   },
 
-  // ✅ UPDATE STATUS
   updateStatus: (id, status) => {
-    db.query(
-      "UPDATE spin_wheels SET status=? WHERE id=?",
-      [status, id]
-    );
+    db.query("UPDATE spin_wheels SET status=? WHERE id=?", [status, id]);
   },
 
-  // ✅ SET START TIME
-  setStartedAt: (id) => {
+  updatePools: (id, w, a, app) => {
     db.query(
-      "UPDATE spin_wheels SET started_at=NOW() WHERE id=?",
-      [id]
+      "UPDATE spin_wheels SET winner_pool=winner_pool+?, admin_pool=admin_pool+?, app_pool=app_pool+? WHERE id=?",
+      [w, a, app, id]
     );
   }
 };
-
-module.exports = SpinWheel;

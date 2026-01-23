@@ -1,82 +1,143 @@
 const SpinWheel = require("../models/spinwheel");
 const Participant = require("../models/participant");
-const coinService = require("./coinservice");
+const db = require("../config/db");
 
-// Timer delay: 3 minutes (for testing, reduce to 10 seconds)
-//const WHEEL_START_DELAY = 3 * 60 * 1000; // 3 min
- const WHEEL_START_DELAY = 30 * 1000; // 10 sec for DEV
+const START_DELAY = 60 * 1000;
 
-/**
- * Starts the timer for a spin wheel
- * After delay, checks participants and starts/aborts wheel
- */
-const startWheelTimer = (wheelId) => {
-  console.log(`⏳ Wheel timer scheduled for wheel ID: ${wheelId}`);
-
+// 1️⃣ AUTO START
+exports.autoStart = (wheelId) => {
   setTimeout(() => {
-    console.log(`⏰ Timer fired for wheel ID: ${wheelId}`);
-
-    // 1️⃣ Get current wheel
-    SpinWheel.getById(wheelId, (err, wheel) => {
-      if (err) {
-        console.error("Error fetching wheel:", err);
-        return;
+    Participant.count(wheelId, (e, c) => {
+      if (c < 3) {
+        // 🔥 REFUND LOGIC ADDED
+        refundAll(wheelId, () => {
+          SpinWheel.updateStatus(wheelId, "aborted");
+        });
+      } else {
+        SpinWheel.updateStatus(wheelId, "running");
+        startElimination(wheelId);
       }
-
-      if (!wheel) {
-        console.log("Wheel not found, aborting timer");
-        return;
-      }
-
-      console.log("Wheel status at timer fire:", wheel.status);
-
-      // Only process waiting wheels
-      if (wheel.status !== "waiting") {
-        console.log("Wheel is not waiting, skipping start");
-        return;
-      }
-
-      // 2️⃣ Count participants
-      Participant.count(wheel.id, (err, count) => {
-        if (err) {
-          console.error("Error counting participants:", err);
-          return;
-        }
-
-        console.log(`Participant count: ${count}, min required: ${wheel.min_players}`);
-
-        if (count < wheel.min_players) {
-          // ❌ Abort wheel
-          console.log("Aborting wheel due to insufficient participants");
-          SpinWheel.updateStatus(wheel.id, "aborted");
-
-          // Refund users
-          Participant.getByWheel(wheel.id, async (err, users) => {
-            if (err) {
-              console.error("Error fetching users for refund:", err);
-              return;
-            }
-
-            console.log("Refunding coins to participants...");
-            for (let user of users) {
-              try {
-                await coinService.refundCoins(user.user_id, wheel.entry_fee);
-                console.log(`Refunded ${wheel.entry_fee} coins to user ${user.user_id}`);
-              } catch (refundErr) {
-                console.error(`Failed to refund user ${user.user_id}:`, refundErr);
-              }
-            }
-          });
-
-        } else {
-          // ✅ Start wheel
-          console.log("Starting wheel!");
-          SpinWheel.updateStatus(wheel.id, "running");
-          SpinWheel.setStartedAt(wheel.id);
-        }
-      });
     });
-  }, WHEEL_START_DELAY);
+  }, START_DELAY);
 };
 
-module.exports = { startWheelTimer };
+// 2️⃣ ELIMINATION PROCESS
+function startElimination(wheelId) {
+  const interval = setInterval(() => {
+    Participant.getAlive(wheelId, (e, users) => {
+      if (users.length === 1) {
+        const winner = users[0];
+
+        // 🔥 PAYOUT LOGIC ADDED
+        payoutWinner(wheelId, winner.user_id, () => {
+          SpinWheel.updateStatus(wheelId, "completed");
+          clearInterval(interval);
+        });
+
+        return;
+      }
+
+      const random = users[Math.floor(Math.random() * users.length)];
+      Participant.eliminate(random.id);
+    });
+  }, 7000);
+}
+
+/////////////////////////
+// 🔥 NEW FUNCTIONS
+/////////////////////////
+
+// 🔁 REFUND ALL USERS
+function refundAll(wheelId, cb) {
+  const sql = `
+    SELECT p.user_id, w.entry_fee
+    FROM spin_participants p
+    JOIN spin_wheels w ON w.id = p.wheel_id
+    WHERE p.wheel_id = ?
+  `;
+
+  db.query(sql, [wheelId], (err, rows) => {
+    if (err || rows.length === 0) return cb();
+
+    db.getConnection((err, conn) => {
+      if (err) return cb();
+
+      conn.beginTransaction(err => {
+        if (err) return cb();
+
+        rows.forEach(r => {
+          // Refund coins
+          conn.query(
+            "UPDATE users SET coins = coins + ? WHERE id=?",
+            [r.entry_fee, r.user_id]
+          );
+
+          // Transaction log
+          conn.query(
+            `INSERT INTO coin_transactions (user_id, amount, type, reason)
+             VALUES (?, ?, 'refund', 'Wheel aborted refund')`,
+            [r.user_id, r.entry_fee]
+          );
+        });
+
+        conn.commit(err => {
+          if (err) return conn.rollback(() => cb());
+          conn.release();
+          cb();
+        });
+      });
+    });
+  });
+}
+
+// 🏆 PAYOUT WINNER + ADMIN
+function payoutWinner(wheelId, winnerId, cb) {
+  db.query(
+    "SELECT winner_pool, admin_pool FROM spin_wheels WHERE id=?",
+    [wheelId],
+    (err, r) => {
+      if (err || !r[0]) return cb();
+
+      const { winner_pool, admin_pool } = r[0];
+
+      db.getConnection((err, conn) => {
+        if (err) return cb();
+
+        conn.beginTransaction(err => {
+          if (err) return cb();
+
+          // Winner payout
+          conn.query(
+            "UPDATE users SET coins = coins + ? WHERE id=?",
+            [winner_pool, winnerId]
+          );
+
+          conn.query(
+            `INSERT INTO coin_transactions (user_id, amount, type, reason)
+             VALUES (?, ?, 'credit', 'Spin wheel win')`,
+            [winnerId, winner_pool]
+          );
+
+          // Admin payout (assuming admin id = 1)
+          conn.query(
+            "UPDATE users SET coins = coins + ? WHERE role='admin' LIMIT 1",
+            [admin_pool]
+          );
+
+          conn.query(
+            `INSERT INTO coin_transactions (user_id, amount, type, reason)
+             SELECT id, ?, 'credit', 'Spin wheel admin commission'
+             FROM users WHERE role='admin' LIMIT 1`,
+            [admin_pool]
+          );
+
+          conn.commit(err => {
+            if (err) return conn.rollback(() => cb());
+            conn.release();
+            cb();
+          });
+        });
+      });
+    }
+  );
+}
