@@ -2,7 +2,7 @@ const SpinWheel = require("../models/spinwheel");
 const Participant = require("../models/participant");
 const db = require("../config/db");
 
-const START_DELAY = 60 * 1000;
+const START_DELAY = 3* 60 * 1000;
 
 // 1️ AUTO START
 exports.autoStart = (wheelId) => {

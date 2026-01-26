@@ -1,0 +1,14 @@
+{
+  "name": "spin-wheel-socket",
+  "type": "module",
+  "scripts": {
+    "start": "node socket_server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^4.19.2",
+    "mysql2": "^3.9.7",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5"
+  }
+}

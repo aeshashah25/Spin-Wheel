@@ -52,8 +52,8 @@ npm -v
 mysql --version
 
  -->Clone the Repository
-git clone https://github.com/your-username/spin-wheel-backend.git
-cd spin-wheel-backend
+git clone https://github.com/aeshashah25/Spin-Wheel
+git pull
 
  -->Install Dependencies
 npm install
